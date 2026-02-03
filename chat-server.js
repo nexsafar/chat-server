@@ -116,10 +116,10 @@ io.on('connection', (socket) => {
             is_read: false
         };
         
-        // Émettre UNIQUEMENT aux autres (pas au sender) avec broadcast
-        socket.broadcast.to(`conversation_${conversation_id}`).emit('new_message', messageData);
+        // Émettre vers TOUS dans la conversation avec new_message
+        io.to(`conversation_${conversation_id}`).emit('new_message', messageData);
         
-        console.log(`✅ Message client émis vers conversation ${conversation_id} (sauf sender)`);
+        console.log(`✅ Message client émis vers conversation ${conversation_id}`);
     });
     
     // AGENCE envoie un message
@@ -138,10 +138,10 @@ io.on('connection', (socket) => {
             is_read: false
         };
         
-        // Émettre UNIQUEMENT aux autres (pas au sender) avec broadcast
-        socket.broadcast.to(`conversation_${conversation_id}`).emit('new_message', messageData);
+        // Émettre vers TOUS dans la conversation avec new_message
+        io.to(`conversation_${conversation_id}`).emit('new_message', messageData);
         
-        console.log(`✅ Message agence émis vers conversation ${conversation_id} (sauf sender)`);
+        console.log(`✅ Message agence émis vers conversation ${conversation_id}`);
     });
     
     // Déconnexion
