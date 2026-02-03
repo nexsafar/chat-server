@@ -8,7 +8,7 @@ const server = http.createServer(app);
 
 const io = socketIo(server, {
     cors: {
-        origin: "*", // Accepter toutes les origines (à restreindre en production)
+        origin: "*", // Accepter toutes les origines
         methods: ["GET", "POST"],
         credentials: true
     },
@@ -105,15 +105,19 @@ io.on('connection', (socket) => {
         console.log('📨 Message client reçu:', data);
         const { conversation_id, message } = data;
         
-        // Émettre vers tous dans la conversation
-        io.to(`conversation_${conversation_id}`).emit('new_message', {
+        // Construire le message unifié
+        const messageData = {
+            id: message.id || data.message_id,
             conversation_id: conversation_id,
-            sender_type: 'user',
+            sender_type: message.sender_type || 'user',
             sender_id: message.sender_id,
-            message: message.message,
+            message: message.message || message,
             created_at: message.created_at || new Date().toISOString(),
             is_read: false
-        });
+        };
+        
+        // Émettre vers TOUS dans la conversation avec new_message
+        io.to(`conversation_${conversation_id}`).emit('new_message', messageData);
         
         console.log(`✅ Message client émis vers conversation ${conversation_id}`);
     });
@@ -121,17 +125,21 @@ io.on('connection', (socket) => {
     // AGENCE envoie un message
     socket.on('agency_message', (data) => {
         console.log('📨 Message agence reçu:', data);
-        const { conversation_id, message } = data;
+        const { conversation_id, message, sender_id } = data;
         
-        // Émettre vers tous les clients de cette conversation
-        io.to(`conversation_${conversation_id}`).emit('new_message', {
+        // Construire le message unifié
+        const messageData = {
+            id: data.message_id || null,
             conversation_id: conversation_id,
             sender_type: 'agency',
-            sender_id: data.sender_id || message.sender_id,
-            message: data.message || message.message,
+            sender_id: sender_id || data.sender_id,
+            message: typeof message === 'string' ? message : (message.message || data.message),
             created_at: data.created_at || new Date().toISOString(),
             is_read: false
-        });
+        };
+        
+        // Émettre vers TOUS dans la conversation avec new_message
+        io.to(`conversation_${conversation_id}`).emit('new_message', messageData);
         
         console.log(`✅ Message agence émis vers conversation ${conversation_id}`);
     });
@@ -151,4 +159,5 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
     console.log(`🚀 Serveur de Chat démarré sur le port ${PORT}`);
+    console.log(`📡 Socket.io prêt à recevoir des connexions`);
 });
