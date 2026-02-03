@@ -8,7 +8,7 @@ const server = http.createServer(app);
 
 const io = socketIo(server, {
     cors: {
-        origin: ["http://localhost", "http://localhost:80", "http://127.0.0.1"],
+        origin: "*", // Accepter toutes les origines (à restreindre en production)
         methods: ["GET", "POST"],
         credentials: true
     },
@@ -50,6 +50,7 @@ app.get('/', (req, res) => {
 io.on('connection', (socket) => {
     console.log(`✅ Nouvelle connexion : ${socket.id}`);
     
+    // CLIENT: Rejoindre la room utilisateur
     socket.on('join_user_room', (data) => {
         const { user_id } = data;
         if (user_id) {
@@ -67,6 +68,14 @@ io.on('connection', (socket) => {
         }
     });
     
+    // AGENCE: Rejoindre la room agence
+    socket.on('join_agency_room', (agency_id) => {
+        socket.join(`agency_${agency_id}`);
+        socket.agency_id = agency_id;
+        console.log(`🏢 Agence ${agency_id} connectée`);
+    });
+    
+    // Rejoindre une conversation
     socket.on('join_conversation', (data) => {
         const { conversation_id, user_id } = data;
         if (conversation_id) {
@@ -80,6 +89,7 @@ io.on('connection', (socket) => {
         }
     });
     
+    // Quitter une conversation
     socket.on('leave_conversation', (data) => {
         const { conversation_id } = data;
         if (conversation_id) {
@@ -90,19 +100,43 @@ io.on('connection', (socket) => {
         }
     });
     
+    // CLIENT envoie un message
     socket.on('send_message', (data) => {
-        const { conversation_id, sender_id, recipient_id, message, message_id } = data;
-        const roomName = `conversation_${conversation_id}`;
-        io.to(roomName).emit('receive_message', {
-            id: message_id,
-            conversation_id,
-            sender_id,
-            recipient_id,
-            message,
-            created_at: new Date().toISOString()
+        console.log('📨 Message client reçu:', data);
+        const { conversation_id, message } = data;
+        
+        // Émettre vers tous dans la conversation
+        io.to(`conversation_${conversation_id}`).emit('new_message', {
+            conversation_id: conversation_id,
+            sender_type: 'user',
+            sender_id: message.sender_id,
+            message: message.message,
+            created_at: message.created_at || new Date().toISOString(),
+            is_read: false
         });
+        
+        console.log(`✅ Message client émis vers conversation ${conversation_id}`);
     });
     
+    // AGENCE envoie un message
+    socket.on('agency_message', (data) => {
+        console.log('📨 Message agence reçu:', data);
+        const { conversation_id, message } = data;
+        
+        // Émettre vers tous les clients de cette conversation
+        io.to(`conversation_${conversation_id}`).emit('new_message', {
+            conversation_id: conversation_id,
+            sender_type: 'agency',
+            sender_id: data.sender_id || message.sender_id,
+            message: data.message || message.message,
+            created_at: data.created_at || new Date().toISOString(),
+            is_read: false
+        });
+        
+        console.log(`✅ Message agence émis vers conversation ${conversation_id}`);
+    });
+    
+    // Déconnexion
     socket.on('disconnect', () => {
         console.log(`❌ Déconnexion : ${socket.id}`);
         if (socket.user_id && connectedUsers.get(socket.user_id) === socket.id) {
@@ -114,7 +148,7 @@ io.on('connection', (socket) => {
     });
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
     console.log(`🚀 Serveur de Chat démarré sur le port ${PORT}`);
 });
